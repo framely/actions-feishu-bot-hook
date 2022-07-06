@@ -1,0 +1,57 @@
+name: 'Feishu Bot Hook'
+description: ''
+inputs:
+  github-token:
+    description: 'Github Token'
+    required: true
+  job-type:
+    description: 'Job Type'
+    default: 'PullRequest'
+  job-status:
+    description: 'Job Status'
+    default: ''
+  hook-id:
+    description: 'Feishu Hook ID'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - shell: bash
+      run: |
+        /usr/bin/env bash
+
+        URI="https://api.github.com"
+        API_HEADER="Accept: application/vnd.github.v3+json"
+        AUTH_HEADER="Authorization: token ${{ inputs.github-token }}"
+        BODY=$(curl -sSL -H "${AUTH_HEADER}" -H "$API_HEADER" "$URI/repos/${GITHUB_REPOSITORY}/actions/runs/${{ github.run_id }}/jobs")
+        WORKFLOW_URL=$(echo "$BODY" | jq .jobs | jq .[-1] | jq .html_url | sed 's/"//g')
+
+        if [ "${{ inputs.job-status }}" == "" ]; then
+            _INPUT_JOB_STATUS="${{ job.status }}"
+        else
+            _INPUT_JOB_STATUS="${{ inputs.job-status }}"
+        fi
+
+        job_status="构建${_INPUT_JOB_STATUS}"
+        repo_full_name="${{ github.repository }}"
+        pr_url="https://github.com/${repo_full_name}/pull/$(echo ${{ github.ref }} | awk -F '/' '{print $3}')"
+
+        PRURL="${pr_url}"
+        TITLE="${job_status} ${repo_full_name} ${{ inputs.job-type }}"
+        cat << EOF > data.txt
+        {
+            "msg_type": "post",
+            "content": {
+                "post": {
+                    "zh_cn": {
+                        "title": "${TITLE}",
+                        "content": [
+                          [{"tag":"text", "text":"PR信息: "  }, {"tag":"a", "text":"${PRURL}", "href":"${PRURL}"}],
+                          [{"tag":"text", "text":"构建详情: "}, {"tag":"a", "text":"${URL}",   "href":"${WORKFLOW_URL}"}]
+                        ]
+                    }
+                }
+            }
+        }
+        EOF
+        curl -H "Content-Type: application/json" -d @data.txt https://open.feishu.cn/open-apis/bot/v2/hook/${{ inputs.hook-id }}
