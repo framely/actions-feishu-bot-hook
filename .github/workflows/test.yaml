@@ -1,0 +1,14 @@
+name: Build and Test
+on:
+  pull_request:
+  push:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: framely/actions-feishu-bot-hook@v1
+        with:
+          job-type: 'PullRequest'
+          job-status: '开始'
+          github-token: ${{ secrets.PAT_TOKEN }}
+          hook-id: ${{ secrets.FEISHU_HOOK_ID }}
